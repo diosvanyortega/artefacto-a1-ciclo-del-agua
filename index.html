@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador del ciclo del agua en la cuenca del Valle de México</title>
+<style>
+  :root{
+    --azul-oscuro:#0b5fa5;
+    --azul:#2b8fd4;
+    --azul-claro:#e8f4fc;
+    --verde:#2e7d4f;
+    --verde-claro:#cfe8d6;
+    --tinta:#1a2b3c;
+    --gris:#5b6b7c;
+    --alerta:#e8722a;
+    --fondo:#f4f8fb;
+    --tarjeta:#ffffff;
+    --borde:#c9d8e4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:24px;
+    font-family:"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background:var(--fondo); color:var(--tinta); line-height:1.55;
+  }
+  .contenedor{max-width:1080px; margin:0 auto;}
+  header.encabezado{
+    background:var(--tarjeta); border:2px solid var(--borde); border-radius:12px;
+    padding:20px 24px; margin-bottom:20px;
+  }
+  header.encabezado h1{margin:0 0 6px; font-size:1.5rem; color:var(--azul-oscuro);}
+  header.encabezado p{margin:4px 0; color:var(--gris); font-size:.95rem;}
+  .etiqueta-nivel{
+    display:inline-block; background:var(--azul-claro); color:var(--azul-oscuro);
+    border:1px solid var(--azul); border-radius:20px; padding:2px 12px;
+    font-size:.8rem; font-weight:600; margin-right:6px;
+  }
+  section.tarjeta{
+    background:var(--tarjeta); border:2px solid var(--borde); border-radius:12px;
+    padding:20px 24px; margin-bottom:20px;
+  }
+  section.tarjeta h2{margin:0 0 4px; font-size:1.2rem; color:var(--azul-oscuro);}
+  .paso-num{
+    display:inline-block; background:var(--azul-oscuro); color:#fff;
+    width:28px; height:28px; border-radius:50%; text-align:center; line-height:28px;
+    font-weight:700; margin-right:8px; font-size:.95rem;
+  }
+  .instruccion{color:var(--gris); margin:6px 0 14px;}
+  textarea{
+    width:100%; min-height:90px; padding:10px; font-size:1rem; font-family:inherit;
+    border:2px solid var(--borde); border-radius:8px; resize:vertical; color:var(--tinta);
+  }
+  textarea:focus{outline:3px solid var(--azul); border-color:var(--azul-oscuro);}
+  textarea[readonly]{background:#eef3f7;}
+  button{
+    font-family:inherit; font-size:1.05rem; font-weight:700;
+    background:var(--azul-oscuro); color:#fff; border:none; border-radius:10px;
+    padding:14px 26px; cursor:pointer; margin-top:12px;
+  }
+  button:hover{background:#094d86;}
+  button:focus-visible{outline:3px solid var(--azul); outline-offset:2px;}
+  button:disabled{background:#9fb3c5; cursor:not-allowed;}
+  button.secundario{background:#fff; color:var(--azul-oscuro); border:2px solid var(--azul-oscuro);}
+  button.secundario:hover{background:var(--azul-claro);}
+  .aviso-bloqueo{
+    background:var(--azul-claro); border:2px dashed var(--azul-oscuro); border-radius:8px;
+    padding:12px 16px; margin-bottom:14px; font-weight:600;
+  }
+  .deslizadores{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin:8px 0 4px;}
+  .control label{font-weight:600; display:block; margin-bottom:6px;}
+  .control .valor{font-weight:700; color:var(--azul-oscuro);}
+  .control input[type=range]{width:100%; height:32px; accent-color:var(--azul-oscuro);}
+  .control input[type=range]:disabled{opacity:.45;}
+  .control small{color:var(--gris);}
+  #diagrama{width:100%; height:auto; border:2px solid var(--borde); border-radius:10px; background:#fff; margin-top:10px;}
+  .etiqueta-svg{font-size:13px; font-weight:500; fill:var(--tinta);}
+  .etiqueta-svg-fondo{font-size:13px; font-weight:500; fill:#fff; paint-order:stroke; stroke:#1a2b3c; stroke-width:3px;}
+  @keyframes caer{from{transform:translateY(0); opacity:1;} to{transform:translateY(46px); opacity:0;}}
+  .gota{animation:caer 1.1s linear infinite;}
+  @keyframes deriva{from{transform:translateX(-14px);} to{transform:translateX(14px);}}
+  .nube{animation:deriva 9s ease-in-out infinite alternate;}
+  @keyframes subir{from{stroke-dashoffset:24;} to{stroke-dashoffset:0;}}
+  .evapo{animation:subir 2.2s linear infinite;}
+  @media (prefers-reduced-motion: reduce){
+    .gota,.nube,.evapo{animation:none;}
+  }
+  .resultados{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:12px;}
+  @media (max-width:640px){.resultados{grid-template-columns:1fr;}}
+  .barra-fila{margin-bottom:14px;}
+  .barra-fila .et{font-weight:600; margin-bottom:4px;}
+  .barra-fondo{background:#e3ecf3; border-radius:8px; height:30px; position:relative; overflow:hidden;}
+  .barra-relleno{height:100%; border-radius:8px; transition:width .45s ease;}
+  #barra-inf{background:var(--azul-oscuro);}
+  #barra-esc{background:var(--azul);}
+  #barra-eto{background:var(--verde);}
+  .barra-num{position:absolute; right:10px; top:4px; font-weight:700; font-size:.9rem;}
+  .frase{
+    background:var(--azul-claro); border-left:6px solid var(--azul-oscuro);
+    border-radius:0 8px 8px 0; padding:14px 16px; font-size:1.08rem; margin-top:6px;
+  }
+  .alerta{
+    display:none; background:#fff3e8; border:2px solid var(--alerta); border-radius:8px;
+    padding:12px 16px; margin-top:12px; font-weight:700; color:#8a3d0c;
+  }
+  .alerta.visible{display:block;}
+  .comparacion{
+    display:none; background:#f2f7ee; border:2px solid var(--verde); border-radius:8px;
+    padding:14px 16px; margin-top:14px;
+  }
+  .comparacion.visible{display:block;}
+  .comparacion blockquote{
+    margin:8px 0; padding:8px 12px; background:#fff; border-left:4px solid var(--verde); font-style:italic;
+  }
+  .pregunta{border-top:1px solid var(--borde); padding:14px 0;}
+  .pregunta p{font-weight:600; margin:0 0 8px;}
+  .pregunta label{display:block; padding:8px 10px; border-radius:6px; cursor:pointer; font-weight:400;}
+  .pregunta label:hover{background:var(--azul-claro);}
+  .pregunta input{margin-right:8px;}
+  .retro{display:none; margin-top:8px; padding:10px 12px; border-radius:8px; font-weight:600;}
+  .retro.bien{display:block; background:#e6f4ea; color:#1d5c34; border:1px solid var(--verde);}
+  .retro.mal{display:block; background:#fdeeee; color:#8a2b1d; border:1px solid #c0574a;}
+  .cotejo{list-style:none; padding:0; margin:10px 0;}
+  .cotejo li{padding:8px 6px; border-bottom:1px solid var(--borde); font-size:1rem;}
+  .cotejo input{width:20px; height:20px; margin-right:10px; vertical-align:middle; accent-color:var(--verde);}
+  .nota-modelo{font-size:.88rem; color:var(--gris); margin-top:16px; border-top:1px dashed var(--borde); padding-top:10px;}
+  footer{color:var(--gris); font-size:.85rem; text-align:center; margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="contenedor">
+
+<header class="encabezado">
+  <h1>Simulador del ciclo del agua en la cuenca del Valle de México</h1>
+  <p>
+    <span class="etiqueta-nivel">2.º de secundaria</span>
+    <span class="etiqueta-nivel">Fase 6</span>
+    <span class="etiqueta-nivel">Saberes y pensamiento científico</span>
+  </p>
+  <p>Primero registra tu hipótesis en el paso 1; después mueve las variables y observa qué le pasa al agua de la cuenca: cuánta se evapotranspira, cuánta se infiltra en el suelo y cuánta escurre hacia el lago.</p>
+</header>
+
+<!-- PASO 1: HIPÓTESIS -->
+<section class="tarjeta" id="seccion-hipotesis" aria-labelledby="t-hip">
+  <h2 id="t-hip"><span class="paso-num">1</span>Escribe tu hipótesis</h2>
+  <p class="instruccion">Antes de tocar los deslizadores, predice: <strong>¿qué crees que pasará con la infiltración y el escurrimiento si aumentan la deforestación y la urbanización?</strong> Escribe tu predicción y pulsa <strong>«Probar hipótesis»</strong>.</p>
+  <label for="hipotesis" style="font-weight:600;">Mi hipótesis:</label>
+  <textarea id="hipotesis" placeholder="Ejemplo: Si aumenta la urbanización, creo que…"></textarea>
+  <br>
+  <button id="btn-hipotesis">Probar hipótesis</button>
+  <p class="instruccion" id="msg-hipotesis" role="status"></p>
+</section>
+
+<!-- PASO 2: SIMULADOR -->
+<section class="tarjeta" id="seccion-simulador" aria-labelledby="t-sim">
+  <h2 id="t-sim"><span class="paso-num">2</span>Experimenta con las variables</h2>
+  <div class="aviso-bloqueo" id="bloqueo">🔒 Los deslizadores se activan cuando registres tu hipótesis en el paso 1.</div>
+  <p class="instruccion">Mueve cada deslizador y observa el diagrama: el grosor de las flechas cambia en vivo.</p>
+  <div class="deslizadores">
+    <div class="control">
+      <label for="sl-deforestacion">Deforestación <span class="valor" id="val-deforestacion">30%</span></label>
+      <input type="range" id="sl-deforestacion" min="0" max="100" value="30" step="5" disabled
+             aria-describedby="ayuda-deforestacion">
+      <small id="ayuda-deforestacion">Porcentaje de la vegetación original que se ha talado.</small>
+    </div>
+    <div class="control">
+      <label for="sl-urbanizacion">Urbanización <span class="valor" id="val-urbanizacion">40%</span></label>
+      <input type="range" id="sl-urbanizacion" min="0" max="100" value="40" step="5" disabled
+             aria-describedby="ayuda-urbanizacion">
+      <small id="ayuda-urbanizacion">Porcentaje del suelo cubierto por pavimento y construcciones.</small>
+    </div>
+    <div class="control">
+      <label for="sl-lluvia">Lluvia <span class="valor" id="val-lluvia">60%</span></label>
+      <input type="range" id="sl-lluvia" min="0" max="100" value="60" step="5" disabled
+             aria-describedby="ayuda-lluvia">
+      <small id="ayuda-lluvia">Intensidad de la precipitación sobre la cuenca.</small>
+    </div>
+  </div>
+
+  <svg id="diagrama" viewBox="0 0 800 440" role="img"
+       aria-label="Diagrama del ciclo del agua en la cuenca: montaña con vegetación a la izquierda, ciudad y lago de Texcoco a la derecha, nubes con lluvia arriba, flechas de infiltración hacia el suelo y de escurrimiento hacia el lago.">
+    <!-- cielo y suelo -->
+    <rect x="0" y="0" width="800" height="300" fill="#e8f4fc"/>
+    <rect x="0" y="300" width="800" height="60" fill="#c9a06a"/>
+    <rect x="0" y="360" width="800" height="80" fill="#a67c4e"/>
+    <text x="700" y="392" class="etiqueta-svg" text-anchor="middle">Subsuelo</text>
+
+    <!-- montaña -->
+    <polygon points="0,300 150,130 300,300" fill="#5da268"/>
+    <polygon points="150,130 300,300 210,300" fill="#4a8a54"/>
+    <text x="150" y="285" class="etiqueta-svg-fondo" text-anchor="middle">Montaña</text>
+    <g id="arboles"></g>
+
+    <!-- ciudad -->
+    <g id="ciudad"></g>
+    <text x="575" y="285" class="etiqueta-svg-fondo" text-anchor="middle">Ciudad</text>
+
+    <!-- depresión del terreno y lago -->
+    <polygon points="655,300 800,300 800,356 672,356" fill="#e8f4fc"/>
+    <polygon points="655,300 672,356 660,356" fill="#d7e9f5"/>
+    <ellipse id="lago" cx="730" cy="336" rx="62" ry="20" fill="#2b8fd4" stroke="#0b5fa5" stroke-width="2"/>
+    <text x="730" y="340" class="etiqueta-svg-fondo" text-anchor="middle">Lago de Texcoco</text>
+
+    <!-- nubes -->
+    <g class="nube" id="nube1">
+      <ellipse cx="220" cy="70" rx="70" ry="26" fill="#ffffff" stroke="#9fb3c5" stroke-width="2"/>
+      <ellipse cx="270" cy="60" rx="52" ry="22" fill="#ffffff" stroke="#9fb3c5" stroke-width="2"/>
+      <text x="245" y="112" class="etiqueta-svg" text-anchor="middle">Nubes</text>
+    </g>
+    <g class="nube" id="nube2" style="animation-delay:-4s">
+      <ellipse cx="560" cy="52" rx="62" ry="22" fill="#ffffff" stroke="#9fb3c5" stroke-width="2"/>
+      <ellipse cx="605" cy="62" rx="44" ry="18" fill="#ffffff" stroke="#9fb3c5" stroke-width="2"/>
+    </g>
+    <g id="lluvia"></g>
+
+    <!-- evapotranspiración -->
+    <g id="evapo" stroke="#2e7d4f" fill="none" stroke-width="3" stroke-linecap="round">
+      <path class="evapo" d="M120,220 q8,-14 0,-28 q-8,-14 0,-28" stroke-dasharray="6 6"/>
+      <path class="evapo" d="M170,235 q8,-14 0,-28 q-8,-14 0,-28" stroke-dasharray="6 6" style="animation-delay:-.7s"/>
+      <path class="evapo" d="M220,220 q8,-14 0,-28 q-8,-14 0,-28" stroke-dasharray="6 6" style="animation-delay:-1.4s"/>
+    </g>
+    <text x="170" y="150" class="etiqueta-svg">Evapotranspiración</text>
+
+    <!-- infiltración -->
+    <g id="infiltracion" stroke="#0b5fa5" stroke-linecap="round">
+      <line x1="360" y1="302" x2="360" y2="352"/>
+      <line x1="420" y1="302" x2="420" y2="352"/>
+      <line x1="480" y1="302" x2="480" y2="352"/>
+    </g>
+    <text x="420" y="392" class="etiqueta-svg" text-anchor="middle">Infiltración</text>
+
+    <!-- escurrimiento -->
+    <g id="escurrimiento" stroke="#2b8fd4" fill="none" stroke-linecap="round">
+      <path d="M300,306 Q460,322 668,338"/>
+      <path d="M320,292 Q480,308 672,330"/>
+    </g>
+    <text x="480" y="292" class="etiqueta-svg">Escurrimiento</text>
+  </svg>
+  <p class="instruccion">El grosor de las flechas muestra cuánta agua se mueve: azul oscuro = infiltración, azul claro = escurrimiento, verde punteado = evapotranspiración de la vegetación.</p>
+</section>
+
+<!-- PASO 3: RESULTADOS -->
+<section class="tarjeta" id="seccion-resultados" aria-labelledby="t-res">
+  <h2 id="t-res"><span class="paso-num">3</span>Resultados</h2>
+  <p class="instruccion">De cada 100 gotas que caen sobre la cuenca:</p>
+  <div class="resultados">
+    <div>
+      <div class="barra-fila">
+        <div class="et">💧 Infiltración <span id="num-inf">0</span> de cada 100 gotas</div>
+        <div class="barra-fondo"><div class="barra-relleno" id="barra-inf" style="width:0%"></div><span class="barra-num" id="pct-inf">0%</span></div>
+      </div>
+      <div class="barra-fila">
+        <div class="et">🌊 Escurrimiento <span id="num-esc">0</span> de cada 100 gotas</div>
+        <div class="barra-fondo"><div class="barra-relleno" id="barra-esc" style="width:0%"></div><span class="barra-num" id="pct-esc">0%</span></div>
+      </div>
+      <div class="barra-fila">
+        <div class="et">🌿 Evapotranspiración <span id="num-eto">0</span> de cada 100 gotas</div>
+        <div class="barra-fondo"><div class="barra-relleno" id="barra-eto" style="width:0%"></div><span class="barra-num" id="pct-eto">0%</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="frase" id="frase" aria-live="polite">Registra tu hipótesis para activar el simulador.</div>
+      <div class="alerta" id="alerta" role="alert">⚠️ Alerta de inundación: el escurrimiento es muy alto. El agua no alcanza a infiltrarse y se acumula en la parte baja de la cuenca.</div>
+      <button class="secundario" id="btn-leer">🔊 Escuchar el resultado</button>
+    </div>
+  </div>
+  <div class="comparacion" id="comparacion">
+    <strong>Tu hipótesis registrada:</strong>
+    <blockquote id="hipo-texto"></blockquote>
+    <strong>Lo que mostró el simulador:</strong>
+    <blockquote id="resultado-texto"></blockquote>
+    <p><strong>¿Qué tan cerca estuviste?</strong> Marca la lista de cotejo del paso 5 para evaluarte.</p>
+  </div>
+  <p class="nota-modelo"><strong>Nota sobre el modelo:</strong> es un modelo cualitativo con fines didácticos: reparte cada 100 gotas de lluvia entre evapotranspiración, infiltración y escurrimiento, y muestra la <em>dirección</em> correcta de los cambios (más urbanización → menos infiltración y más escurrimiento; más deforestación → menos evapotranspiración y menos infiltración; lluvia muy intensa → el suelo se satura y escurre más). No son predicciones numéricas reales de la cuenca.</p>
+</section>
+
+<!-- PASO 4: VERIFICACIÓN -->
+<section class="tarjeta" id="seccion-preguntas" aria-labelledby="t-preg">
+  <h2 id="t-preg"><span class="paso-num">4</span>Preguntas de verificación</h2>
+  <p class="instruccion">Responde y pulsa «Revisar» en cada pregunta.</p>
+
+  <div class="pregunta" id="p1">
+    <p>1. Si aumenta la urbanización en la cuenca, ¿qué le pasa a la infiltración?</p>
+    <label><input type="radio" name="q1" value="a"> Aumenta, porque hay más construcciones.</label>
+    <label><input type="radio" name="q1" value="b"> Disminuye, porque el pavimento no deja pasar el agua al suelo.</label>
+    <label><input type="radio" name="q1" value="c"> No cambia, porque la lluvia es la misma.</label>
+    <button class="secundario" data-q="q1" data-ok="b">Revisar</button>
+    <div class="retro" id="r-q1"></div>
+  </div>
+
+  <div class="pregunta" id="p2">
+    <p>2. ¿Por qué la deforestación aumenta el escurrimiento hacia el lago?</p>
+    <label><input type="radio" name="q2" value="a"> Porque sin árboles hay menos raíces que retienen el agua y menos evapotranspiración.</label>
+    <label><input type="radio" name="q2" value="b"> Porque los árboles producen lluvia.</label>
+    <label><input type="radio" name="q2" value="c"> Porque la deforestación enfría el suelo.</label>
+    <button class="secundario" data-q="q2" data-ok="a">Revisar</button>
+    <div class="retro" id="r-q2"></div>
+  </div>
+
+  <div class="pregunta" id="p3">
+    <p>3. ¿Qué combinación produce mayor riesgo de inundación en el Valle de México?</p>
+    <label><input type="radio" name="q3" value="a"> Poca lluvia y poca urbanización.</label>
+    <label><input type="radio" name="q3" value="b"> Mucha deforestación y poca lluvia.</label>
+    <label><input type="radio" name="q3" value="c"> Lluvia intensa y alta urbanización.</label>
+    <button class="secundario" data-q="q3" data-ok="c">Revisar</button>
+    <div class="retro" id="r-q3"></div>
+  </div>
+</section>
+
+<!-- PASO 5: LISTA DE COTEJO -->
+<section class="tarjeta" id="seccion-cotejo" aria-labelledby="t-cot">
+  <h2 id="t-cot"><span class="paso-num">5</span>Lista de cotejo de mi hipótesis</h2>
+  <p class="instruccion">Compara tu hipótesis registrada (paso 3) con lo que observaste y marca lo que sí cumpliste. Llevas <strong><span id="cotejo-num">0</span> de 4</strong>.</p>
+  <ul class="cotejo">
+    <li><label><input type="checkbox" class="cot"> Mi hipótesis mencionó la <strong>infiltración</strong>.</label></li>
+    <li><label><input type="checkbox" class="cot"> Mi hipótesis mencionó el <strong>escurrimiento o las inundaciones</strong>.</label></li>
+    <li><label><input type="checkbox" class="cot"> La <strong>dirección del cambio</strong> que predije fue correcta (sube/baja).</label></li>
+    <li><label><input type="checkbox" class="cot"> Expliqué la <strong>causa</strong> (por qué pasa, no solo qué pasa).</label></li>
+  </ul>
+  <p class="instruccion" id="cotejo-msg"></p>
+</section>
+
+<footer>Artefacto A1 · Simulador de fenómenos — Guía CRESPF «Artefactos a tu medida». Modelo cualitativo con fines didácticos.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var D = 30, U = 40, R = 60;      // deforestación, urbanización, lluvia (0-100)
+  var hipotesisRegistrada = false;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var slD = $("sl-deforestacion"), slU = $("sl-urbanizacion"), slR = $("sl-lluvia");
+
+  /* ---------- modelo cualitativo ----------
+     Reparte la lluvia en tres fracciones que siempre suman 1:
+     - evapotranspiración: depende de la vegetación (más árboles → más vapor)
+     - infiltración: depende del suelo permeable y la vegetación; la lluvia
+       muy intensa la reduce porque el suelo se satura (capacidad finita)
+     - escurrimiento: el resto; es lo que baja hacia el lago            */
+  function calcular(){
+    var perm = 1 - U/100;              // suelo permeable: la urbanización lo reduce
+    var veg  = 1 - D/100;              // cobertura vegetal: la deforestación la reduce
+    var eto  = 0.28 * veg;
+    var inf  = 0.65 * perm * (0.45 + 0.55 * veg) * (1 - 0.5 * (R/100));
+    var esc  = 1 - eto - inf;
+    if (esc < 0){ esc = 0; }
+    // redondeo a enteros que suman 100
+    var e = Math.round(eto * 100), i = Math.round(inf * 100);
+    var s = 100 - e - i;
+    return { eto: e, inf: i, esc: s, veg: veg, alerta: s >= 60 && R >= 5 };
+  }
+
+  /* ---------- dibujo del diagrama ---------- */
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs){
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+
+  function dibujarArboles(veg){
+    var g = $("arboles"); g.innerHTML = "";
+    var n = Math.round(12 * veg);
+    var pts = [[70,262],[100,238],[130,214],[160,192],[190,172],[215,200],[185,225],[140,248],[105,262],[230,180],[90,272],[200,215]];
+    for (var i = 0; i < n && i < pts.length; i++){
+      var x = pts[i][0], y = pts[i][1];
+      g.appendChild(el("rect",{x:x-2, y:y, width:4, height:14, fill:"#6b4a2f"}));
+      g.appendChild(el("circle",{cx:x, cy:y-6, r:10, fill:"#2e7d4f"}));
+      g.appendChild(el("circle",{cx:x-7, cy:y, r:7, fill:"#3e9c63"}));
+    }
+  }
+
+  function dibujarCiudad(u){
+    var g = $("ciudad"); g.innerHTML = "";
+    var n = Math.round(7 * u/100);
+    var xs = [508, 550, 592, 634, 529, 571, 613];
+    var hs = [70, 105, 85, 120, 60, 95, 80];
+    for (var i = 0; i < n && i < xs.length; i++){
+      var x = xs[i], h = hs[i], y = 300 - h;
+      g.appendChild(el("rect",{x:x, y:y, width:38, height:h, fill:"#9aa7b5", stroke:"#5b6b7c", "stroke-width":1.5}));
+      for (var wy = y + 10; wy < 292; wy += 18){
+        for (var wx = x + 6; wx < x + 33; wx += 12){
+          g.appendChild(el("rect",{x:wx, y:wy, width:6, height:9, fill:"#e8f4fc"}));
+        }
+      }
+    }
+  }
+
+  /* posiciones fijas: la lluvia no parpadea al arrastrar el deslizador */
+  var POS_LLUVIA = [];
+  (function(){
+    var k = 0;
+    for (var fila = 0; fila < 6; fila++){
+      for (var col = 0; col < 7; col++){
+        POS_LLUVIA.push([110 + col*82 + (fila%2)*30, 100 + fila*9]);
+        k++;
+      }
+    }
+  })();
+
+  function dibujarLluvia(r){
+    var g = $("lluvia"); g.innerHTML = "";
+    var n = Math.round(r/100 * POS_LLUVIA.length);
+    for (var i = 0; i < n; i++){
+      var x = POS_LLUVIA[i][0], y = POS_LLUVIA[i][1];
+      var l = el("line",{x1:x, y1:y, x2:x-4, y2:y+16, stroke:"#2b8fd4", "stroke-width":2.5, "stroke-linecap":"round", "class":"gota"});
+      l.style.animationDelay = (-((i * 0.37) % 1.1)).toFixed(2) + "s";
+      g.appendChild(l);
+    }
+  }
+
+  /* ---------- actualización en vivo ---------- */
+  function fraseResultado(m){
+    if (R < 5) return "Con tan poca lluvia, el ciclo apenas se mueve: casi no hay agua que repartir.";
+    var f = "Con " + D + "% de deforestación, " + U + "% de urbanización y " + R +
+      "% de lluvia, de cada 100 gotas que caen, " + m.eto + " se evapotranspiran, " +
+      m.inf + " se infiltran en el suelo y " + m.esc + " escurren hacia el lago.";
+    if (m.alerta) f += " Hay riesgo de inundación en la parte baja de la cuenca.";
+    else if (m.esc >= 40) f += " El escurrimiento es considerable: conviene observar el lago.";
+    else f += " El agua se reparte sin riesgo de inundación.";
+    return f;
+  }
+
+  function actualizar(){
+    var m = calcular();
+    $("val-deforestacion").textContent = D + "%";
+    $("val-urbanizacion").textContent = U + "%";
+    $("val-lluvia").textContent = R + "%";
+
+    dibujarArboles(m.veg);
+    dibujarCiudad(U);
+    dibujarLluvia(R);
+    $("evapo").setAttribute("opacity", (0.15 + 0.85 * m.veg).toFixed(2));
+
+    var gi = $("infiltracion").querySelectorAll("line");
+    for (var i = 0; i < gi.length; i++) gi[i].setAttribute("stroke-width", (1 + m.inf/100*9).toFixed(1));
+    var ge = $("escurrimiento").querySelectorAll("path");
+    for (var j = 0; j < ge.length; j++){
+      ge[j].setAttribute("stroke-width", (1 + m.esc/100*9).toFixed(1));
+      ge[j].setAttribute("stroke", "#2b8fd4");
+    }
+    var lago = $("lago");
+    lago.setAttribute("ry", (16 + m.esc * 0.10).toFixed(1));
+
+    var sinLluvia = R < 5;   // sin lluvia no hay gotas que repartir: barras en cero
+    $("num-inf").textContent = sinLluvia ? 0 : m.inf;
+    $("num-esc").textContent = sinLluvia ? 0 : m.esc;
+    $("num-eto").textContent = sinLluvia ? 0 : m.eto;
+    $("pct-inf").textContent = (sinLluvia ? 0 : m.inf) + "%";
+    $("pct-esc").textContent = (sinLluvia ? 0 : m.esc) + "%";
+    $("pct-eto").textContent = (sinLluvia ? 0 : m.eto) + "%";
+    $("barra-inf").style.width = (sinLluvia ? 0 : m.inf) + "%";
+    $("barra-esc").style.width = (sinLluvia ? 0 : m.esc) + "%";
+    $("barra-eto").style.width = (sinLluvia ? 0 : m.eto) + "%";
+    var frase = fraseResultado(m);
+    $("frase").textContent = frase;
+    $("frase").dataset.texto = frase;
+    $("alerta").classList.toggle("visible", m.alerta);
+  }
+
+  /* ---------- hipótesis ---------- */
+  $("btn-hipotesis").addEventListener("click", function(){
+    var btn = this;
+    if (!hipotesisRegistrada){
+      var t = $("hipotesis").value.trim();
+      if (t.length < 10){
+        $("msg-hipotesis").textContent = "Escribe tu predicción primero (al menos una frase completa).";
+        $("hipotesis").focus();
+        return;
+      }
+      hipotesisRegistrada = true;
+      $("hipotesis").readOnly = true;
+      $("hipo-texto").textContent = t;
+      slD.disabled = slU.disabled = slR.disabled = false;
+      $("bloqueo").style.display = "none";
+      $("msg-hipotesis").textContent = "Hipótesis registrada. Ahora mueve los deslizadores y observa.";
+      btn.textContent = "Comparar con el resultado";
+      actualizar();
+      document.getElementById("seccion-simulador").scrollIntoView({behavior:"smooth"});
+    } else {
+      $("resultado-texto").textContent = fraseResultado(calcular());
+      $("comparacion").classList.add("visible");
+      $("comparacion").scrollIntoView({behavior:"smooth", block:"center"});
+      btn.disabled = true;
+      btn.textContent = "Hipótesis en comparación";
+    }
+  });
+
+  [slD, slU, slR].forEach(function(sl){
+    sl.addEventListener("input", function(){
+      D = parseInt(slD.value, 10);
+      U = parseInt(slU.value, 10);
+      R = parseInt(slR.value, 10);
+      actualizar();
+    });
+  });
+
+  /* ---------- lectura en voz alta (DUA) ---------- */
+  $("btn-leer").addEventListener("click", function(){
+    if (!("speechSynthesis" in window)){
+      alert("Tu navegador no soporta lectura en voz alta.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    var txt = $("frase").dataset.texto || $("frase").textContent;
+    var u = new SpeechSynthesisUtterance(txt);
+    u.lang = "es-MX";
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+  });
+
+  /* ---------- preguntas ---------- */
+  var explicaciones = {
+    q1: { bien: "¡Correcto! El pavimento y las construcciones sellan el suelo: el agua ya no puede infiltrarse y escurre.",
+          mal: "No exactamente. Piensa: ¿el agua puede atravesar el pavimento? Mueve el deslizador de urbanización y observa la flecha de infiltración." },
+    q2: { bien: "¡Correcto! Las raíces retienen el agua en el suelo y las hojas devuelven vapor a la atmósfera (evapotranspiración).",
+          mal: "No exactamente. Observa en el diagrama: al subir la deforestación desaparecen los árboles y se adelgazan las flechas verdes." },
+    q3: { bien: "¡Correcto! Mucha lluvia más suelo impermeable por la urbanización: esa es la fórmula de las inundaciones en el Valle de México.",
+          mal: "No exactamente. Prueba en el simulador: sube la lluvia y la urbanización al máximo y mira la alerta." }
+  };
+  document.querySelectorAll("button[data-q]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var q = btn.getAttribute("data-q"), ok = btn.getAttribute("data-ok");
+      var sel = document.querySelector('input[name="'+q+'"]:checked');
+      var retro = $("r-" + q);
+      if (!sel){
+        retro.className = "retro mal";
+        retro.textContent = "Elige una opción primero.";
+        return;
+      }
+      if (sel.value === ok){
+        retro.className = "retro bien";
+        retro.textContent = explicaciones[q].bien;
+      } else {
+        retro.className = "retro mal";
+        retro.textContent = explicaciones[q].mal;
+      }
+    });
+  });
+
+  /* ---------- lista de cotejo ---------- */
+  document.querySelectorAll(".cot").forEach(function(chk){
+    chk.addEventListener("change", function(){
+      var n = document.querySelectorAll(".cot:checked").length;
+      $("cotejo-num").textContent = n;
+      $("cotejo-msg").textContent =
+        n === 4 ? "¡Excelente! Tu hipótesis fue completa: predijiste, explicaste y usaste el vocabulario del ciclo del agua." :
+        n >= 2 ? "Vas bien. Revisa lo que te faltó: una buena hipótesis nombra las variables y explica la causa." :
+        "Sigue intentando: compara tu hipótesis con el resultado del simulador.";
+    });
+  });
+
+  /* estado inicial */
+  dibujarArboles(0.7); dibujarCiudad(40); dibujarLluvia(60);
+})();
+</script>
+</body>
+</html>
